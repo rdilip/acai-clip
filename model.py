@@ -39,3 +39,27 @@ def decoupled_contrastive_loss(
     LB = exp_logits.diagonal() / exp_logits_denom_B
 
     return 0.5 * (-LA.log() - LB.log()).mean()
+
+class TokenDropout(nn.Module):
+    def __init__(self, prob: float):
+        super().__init__()
+        assert 0 <= prob <= 1
+        self.prob = prob
+
+    # Should we do token dropout in addition to or including padded tokens?
+    # There is a part that is for efficiency and there is a part that is for
+    # learning. If a large part of your dropout involves padded tokens, then
+    # you actually aren't making the problem much harder...
+    # We could also pad after dropping out lol...
+    # you need to encode some 
+    def forward(self, x, keep_all=False):
+        if not self.training or self.prob == 0. or keep_all:
+            return x
+        
+        B, T, D = x.shape
+        num_tokens_keep = max(1, int(T * (1 - self.prob)))
+
+        batch_indices = torch.arange(B, device=x.device)[..., None]
+        token_indices_keep = torch.randn(B, T, device=x.device).topk(num_tokens_keep, dim = -1).indices
+
+        return x[batch_indices, token_indices_keep]
