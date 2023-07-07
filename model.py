@@ -46,12 +46,9 @@ class TokenDropout(nn.Module):
         assert 0 <= prob <= 1
         self.prob = prob
 
-    # Should we do token dropout in addition to or including padded tokens?
-    # There is a part that is for efficiency and there is a part that is for
-    # learning. If a large part of your dropout involves padded tokens, then
-    # you actually aren't making the problem much harder...
-    # We could also pad after dropping out lol...
-    # you need to encode some 
+    # For now, we'll just dropout tokens without too much extra thought.
+    # We may eventually want to first drop padded tokens, then drop the meaningful
+    # ones, but that's an added complication
     def forward(self, x, keep_all=False):
         if not self.training or self.prob == 0. or keep_all:
             return x
