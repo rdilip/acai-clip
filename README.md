@@ -9,3 +9,4 @@ acai (all contrastive advances/improvements) CLIP is CLIP on steroids. I'm imple
 - [x] [Masking](https://arxiv.org/pdf/2212.00794.pdf)
 - [ ] [FILIP](https://arxiv.org/pdf/2111.07783.pdf) (this may be particularly useful)
 - [ ] [Normformer, maybe](https://arxiv.org/pdf/2110.09456.pdf)
+- [ ] [LiT](https://arxiv.org/pdf/2111.07991.pdf)
