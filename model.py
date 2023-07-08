@@ -52,12 +52,16 @@ class AcaiCLIP(nn.Module):
         if self.filip_similarity_score:
             logits = filip_similarity_score(hA, hB, self.temperature)
         else:
-            logits = einsum(hA, hB, "b1 t d, b2 t d -> b1 b2") / self.temperature
+            hA = reduce(hA, "1 b t d -> b d", "mean")
+            hB = reduce(hB, "1 b t d -> b d", "mean")
+            logits = einsum(hA, hB, "b1 d, b2 d -> b1 b2") / self.temperature
 
         if self.dcl_loss:
-            loss = decoupled_contrastive_loss(logits)
+            loss_A, loss_B = decoupled_contrastive_loss(logits)
         else:
-            loss = default_clip_loss(logits)
+            loss_A, loss_B = default_clip_loss(logits)
+        
+        loss = (loss_A + loss_B).mean() / 2
 
         return logits, loss
 
@@ -65,8 +69,7 @@ class AcaiCLIP(nn.Module):
 def default_clip_loss(logits):
     l1 = F.cross_entropy(logits, torch.arange(logits.shape[0]).to(logits.device))
     l2 = F.cross_entropy(logits.T, torch.arange(logits.shape[0]).to(logits.device))
-    loss = ((l1 + l2) / 2).mean()
-    return loss
+    return l1, l2
 
 
 def decoupled_contrastive_loss(
