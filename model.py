@@ -10,39 +10,57 @@ def check_shape(tensor, pattern, **kwargs):
 class AcaiCLIP(nn.Module):
     def __init__(
             self,
-            modelA,
-            modelB,
+            model_A,
+            model_B,
             token_dropout: float,
             model_A_output_dim: int,
-            dim: int = 256
+            dim: int = 256,
+            dcl_loss: bool = True,
+            filip_similarity_score: bool = True,
     ):
-        self.modelA = modelA
-        self.modelB = modelB
-        self.token_dropout = token_dropout
+        self.model_A = model_A
 
+        for param in self.model_A.parameters():
+            param.requires_grad = False
+        self.model_B = model_B
+
+        self.token_dropout = TokenDropout(prob=token_dropout)
         # Used as a projection for LiT
         self.linear = nn.Linear(model_A_output_dim, dim) 
+        self.dcl_loss = dcl_loss
+        self.filip_similarity_score = filip_similarity_score
+        self.temperature = nn.Parameter(torch.tensor(0.1))
 
-    def forward(self, batchA, maskA, batchB, maskB):
-        hA = self.modelA(batchA, mask=maskA)
+    # TODO: update to allow for augmented groups. For now, no need.
+    # TODO: consider treating attp and attb as different groups. 
+    # TODO: consider adding an attp token and an attp token (learnable)
+    #       then we could treat them as on even footing, and it would be fine.
+    def forward(self, batch_A, mask_A, batch_B, mask_B):
+        tokens_A, tokens_B = map(self.token_dropout, (batch_A, batch_B))
+
+        hA = self.model_A(tokens_A, mask=mask_A)
         hA = self.linear(hA)
-        check_shape(batchA, "m b t d")
-        check_shape(maskA, "m b t")
+        hA = rearrange(hA, "b t d -> 1 b t d")
 
-        check_shape(batchB, "n b t d")
-        check_shape(maskB, "n b t")
+        hB = self.model_B(tokens_B, mask=mask_B)
+        hB = rearrange(hB, "b t d -> 1 b t d") 
 
+        hA = hA / hA.norm(dim=-1, keepdim=True)
+        hB = hB / hB.norm(dim=-1, keepdim=True)
 
-def default_clip_loss(
-    hA,
-    hB,
-    temperature=0.1,
-):
-    hA = hA / hA.norm(dim=-1, keepdim=True)
-    hB = hB / hB.norm(dim=-1, keepdim=True)
+        if self.filip_similarity_score:
+            logits = filip_similarity_score(hA, hB, self.temperature)
+        else:
+            logits = einsum("b t d, b t d -> b b", hA, hB) / self.temperature
+        
+        if self.dcl_loss:
+            loss = decoupled_contrastive_loss(logits)
+        else:
+            loss = default_clip_loss(logits)
+        
+        return logits, loss
 
-    logits = hA @ hB.T / temperature
-
+def default_clip_loss(logits):
     l1 = F.cross_entropy(logits, torch.arange(logits.shape[0]).to(logits.device))
     l2 = F.cross_entropy(logits.T, torch.arange(logits.shape[0]).to(logits.device))
     loss = ((l1 + l2) / 2).mean()
