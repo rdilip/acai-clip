@@ -18,7 +18,7 @@ def test_decoupled_contrastive_loss():
 def test_token_dropout():
     B, T, D = 16, 128, 512
     x = torch.randn(B, T, D)
-    token_dropout = TokenDropout(0.5)
+    token_dropout, _ = TokenDropout(0.5)
     x = token_dropout(x)
     assert x.shape == (B, T // 2, D)
 

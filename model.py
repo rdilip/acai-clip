@@ -62,7 +62,7 @@ class TokenDropout(nn.Module):
             torch.randn(B, T, device=x.device).topk(num_tokens_keep, dim=-1).indices
         )
 
-        return x[batch_indices, token_indices_keep]
+        return x[batch_indices, token_indices_keep], token_indices_keep
 
 
 def masked_mean(t, mask, dim=1, eps=1e-6):
