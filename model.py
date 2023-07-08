@@ -7,16 +7,17 @@ from einops import reduce, einsum, rearrange
 def check_shape(tensor, pattern, **kwargs):
     return rearrange(tensor, f"{pattern} -> {pattern}", **kwargs)
 
+
 class AcaiCLIP(nn.Module):
     def __init__(
-            self,
-            model_A,
-            model_B,
-            token_dropout: float,
-            model_A_output_dim: int,
-            dim: int = 256,
-            dcl_loss: bool = True,
-            filip_similarity_score: bool = True,
+        self,
+        model_A,
+        model_B,
+        token_dropout: float,
+        model_A_output_dim: int,
+        dim: int = 256,
+        dcl_loss: bool = True,
+        filip_similarity_score: bool = True,
     ):
         self.model_A = model_A
 
@@ -26,13 +27,13 @@ class AcaiCLIP(nn.Module):
 
         self.token_dropout = TokenDropout(prob=token_dropout)
         # Used as a projection for LiT
-        self.linear = nn.Linear(model_A_output_dim, dim) 
+        self.linear = nn.Linear(model_A_output_dim, dim)
         self.dcl_loss = dcl_loss
         self.filip_similarity_score = filip_similarity_score
         self.temperature = nn.Parameter(torch.tensor(0.1))
 
     # TODO: update to allow for augmented groups. For now, no need.
-    # TODO: consider treating attp and attb as different groups. 
+    # TODO: consider treating attp and attb as different groups.
     # TODO: consider adding an attp token and an attp token (learnable)
     #       then we could treat them as on even footing, and it would be fine.
     def forward(self, batch_A, mask_A, batch_B, mask_B):
@@ -43,7 +44,7 @@ class AcaiCLIP(nn.Module):
         hA = rearrange(hA, "b t d -> 1 b t d")
 
         hB = self.model_B(tokens_B, mask=mask_B)
-        hB = rearrange(hB, "b t d -> 1 b t d") 
+        hB = rearrange(hB, "b t d -> 1 b t d")
 
         hA = hA / hA.norm(dim=-1, keepdim=True)
         hB = hB / hB.norm(dim=-1, keepdim=True)
@@ -51,14 +52,15 @@ class AcaiCLIP(nn.Module):
         if self.filip_similarity_score:
             logits = filip_similarity_score(hA, hB, self.temperature)
         else:
-            logits = einsum("b t d, b t d -> b b", hA, hB) / self.temperature
-        
+            logits = einsum(hA, hB, "b1 t d, b2 t d -> b1 b2") / self.temperature
+
         if self.dcl_loss:
             loss = decoupled_contrastive_loss(logits)
         else:
             loss = default_clip_loss(logits)
-        
+
         return logits, loss
+
 
 def default_clip_loss(logits):
     l1 = F.cross_entropy(logits, torch.arange(logits.shape[0]).to(logits.device))
@@ -68,7 +70,7 @@ def default_clip_loss(logits):
 
 
 def decoupled_contrastive_loss(
-    logits: torch.Tensor, # B, B
+    logits: torch.Tensor,  # B, B
 ):
     exp_logits = torch.exp(logits)
     pos_mask = torch.eye(logits.shape[0], device=logits.device, dtype=torch.bool)
@@ -128,9 +130,7 @@ def filip_similarity_score(
     maskA:  group, batch, time
     maskB:  group, batch, time
     """
-    sim_scores = (
-        einsum(hA, hB, "m bA tA d, n bB tB d -> m n bA bB tA tB") / temperature
-    )
+    sim_scores = einsum(hA, hB, "m bA tA d, n bB tB d -> m n bA bB tA tB") / temperature
     maskA = rearrange(maskA, "m bA tA -> m 1 bA 1 tA 1")
     maskB = rearrange(maskB, "n bB tB -> 1 n 1 bB 1 tB")
     combined_mask = maskA * maskB
@@ -152,4 +152,3 @@ def filip_similarity_score(
     )
 
     return sim_scores_A, sim_scores_B
-
