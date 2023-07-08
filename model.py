@@ -4,6 +4,35 @@ import torch.nn.functional as F
 from einops import reduce, einsum, rearrange
 
 
+def check_shape(tensor, pattern, **kwargs):
+    return rearrange(tensor, f"{pattern} -> {pattern}", **kwargs)
+
+class AcaiCLIP(nn.Module):
+    def __init__(
+            self,
+            modelA,
+            modelB,
+            token_dropout: float,
+            model_A_output_dim: int,
+            dim: int = 256
+    ):
+        self.modelA = modelA
+        self.modelB = modelB
+        self.token_dropout = token_dropout
+
+        # Used as a projection for LiT
+        self.linear = nn.Linear(model_A_output_dim, dim) 
+
+    def forward(self, batchA, maskA, batchB, maskB):
+        hA = self.modelA(batchA, mask=maskA)
+        hA = self.linear(hA)
+        check_shape(batchA, "m b t d")
+        check_shape(maskA, "m b t")
+
+        check_shape(batchB, "n b t d")
+        check_shape(maskB, "n b t")
+
+
 def default_clip_loss(
     hA,
     hB,
@@ -21,14 +50,8 @@ def default_clip_loss(
 
 
 def decoupled_contrastive_loss(
-    hA: torch.Tensor,  # B, D
-    hB: torch.Tensor,  # B, D
-    temperature: float = 0.1,
+    logits: torch.Tensor, # B, B
 ):
-    hA = hA / hA.norm(dim=-1, keepdim=True)
-    hB = hB / hB.norm(dim=-1, keepdim=True)
-    logits = hA @ hB.T / temperature
-
     exp_logits = torch.exp(logits)
     pos_mask = torch.eye(logits.shape[0], device=logits.device, dtype=torch.bool)
     exp_logits = exp_logits.masked_fill(pos_mask, 0)
