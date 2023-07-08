@@ -81,29 +81,24 @@ def filip_similarity_score(
 ):
     """Computes a filip similarity score (described in
     https://arxiv.org/pdf/2111.07783.pdf) for modalities A and B.
-    NOTE: Apparently this isn't actually symmetric...
-    # M and N control the number of batches for multiview sampling. This is likely possible using
     # recombinase clusters, though I suspect this may only be true on the protein side.
-    hA: M, B, T, D
-    hB: N, B, T, D
-    maskA: M, B, T
-    maskB: N, B, T
+    hA:     group, batch, time, dim
+    hB:     group, batch, time, dim
+    maskA:  group, batch, time
+    maskB:  group, batch, time
     """
-    # need to mask out ones, non padded tokens only
-    # this includes ismilarity scores between masked tokens along tA and tB
     sim_scores = (
-        einsum(hA, hB, "m bA tA d, n bB tB d -> m n bA bB tA tB", hA, hB) / temperature
+        einsum(hA, hB, "m bA tA d, n bB tB d -> m n bA bB tA tB") / temperature
     )
     maskA = rearrange(maskA, "m bA tA -> m 1 bA 1 tA 1")
     maskB = rearrange(maskB, "n bB tB -> 1 n 1 bB 1 tB")
     combined_mask = maskA * maskB
-    # we want to mask out ALL padding tokens for both modalities
+
+    # Mask out all padding tokens for both modalities
     sim_scores_masked = sim_scores.masked_fill(
         ~combined_mask, torch.finfo(sim_scores.dtype).min
     )
 
-    # The tokens corresponding to padding will have all negative values, the max is trivial
-    # It may be that we should selectively max out only the tokens we're using, but I don' think thta's faster
     sim_scores_A = reduce(sim_scores_masked, "... tA tB -> ... tA", "max")
     sim_scores_B = reduce(sim_scores_masked, "... tA tB -> ... tB", "max")
 
@@ -115,6 +110,5 @@ def filip_similarity_score(
         sim_scores_B, rearrange(maskB, "... 1 tB -> ... tB"), dim=-1
     )
 
+    return sim_scores_A, sim_scores_B
 
-# def max_neg_value(dtype):
-#    return -torch.finfo(dtype).max
