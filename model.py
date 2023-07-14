@@ -36,6 +36,8 @@ class AcaiCLIP(nn.Module):
     # TODO: consider treating attp and attb as different groups.
     # TODO: consider adding an attp token and an attp token (learnable)
     #       then we could treat them as on even footing, and it would be fine.
+    # NOTE: If you do go this route, you should be careful to distinguish
+    #       between SSL, SLIP etc. and two groups from the same batch.
     def forward(self, batch_A, mask_A, batch_B, mask_B):
         tokens_A, tokens_B = map(self.token_dropout, (batch_A, batch_B))
 
@@ -60,7 +62,7 @@ class AcaiCLIP(nn.Module):
             loss_A, loss_B = decoupled_contrastive_loss(logits)
         else:
             loss_A, loss_B = default_clip_loss(logits)
-        
+
         loss = (loss_A + loss_B).mean() / 2
 
         return logits, loss
