@@ -4,10 +4,6 @@ import torch.nn.functional as F
 from einops import reduce, einsum, rearrange
 
 
-def check_shape(tensor, pattern, **kwargs):
-    return rearrange(tensor, f"{pattern} -> {pattern}", **kwargs)
-
-
 class AcaiCLIP(nn.Module):
     def __init__(
         self,
