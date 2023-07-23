@@ -1,17 +1,25 @@
 from model import (
     TokenDropout,
     filip_similarity_score,
+    contrastive_loss,
 )
 import torch
+import torch.nn.functional as F
 from einops import rearrange
 from itertools import product
 
 
 def test_decoupled_contrastive_loss():
-    # To run this test, comment out the masking in loss.py
-    batch_size = 16
-    embd_dim = 128
-    hA, hB = torch.randn(batch_size, embd_dim), torch.randn(batch_size, embd_dim)
+    """ I can't think of a good way to test the DCL portion TBH """
+    logits = torch.randn((64, 64))
+    assert torch.allclose(
+        F.cross_entropy(logits, torch.arange(logits.shape[0]).to(logits.device)),
+        contrastive_loss(logits, use_dcl=False).mean(),
+    )
+    assert torch.allclose(
+        F.cross_entropy(logits.T, torch.arange(logits.shape[0]).to(logits.device)),
+        contrastive_loss(logits.T, use_dcl=False).mean(),
+    )
     # assert torch.isclose(default_clip_loss(hA, hB), decoupled_contrastive_loss(hA, hB))
 
 
@@ -150,8 +158,8 @@ def test_similarity_score_multi_batch():
 
 
 if __name__ == "__main__":
-    # test_decoupled_contrastive_loss()
+    test_decoupled_contrastive_loss()
     # test_token_dropout()
 
     # test_similarity_score_single_batch()
-    test_similarity_score_multi_batch()
+    #test_similarity_score_multi_batch()

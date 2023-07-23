@@ -60,26 +60,16 @@ class AcaiCLIP(nn.Module):
 
         return logits, loss
 
+def contrastive_loss(logits: torch.Tensor, use_dcl: bool = False):
+    exp_logits = logits.exp()
+    loss_numerator = exp_logits.diagonal()
 
-def default_clip_loss(logits):
-    l1 = F.cross_entropy(logits, torch.arange(logits.shape[0]).to(logits.device))
-    l2 = F.cross_entropy(logits.T, torch.arange(logits.shape[0]).to(logits.device))
-    return l1, l2
-
-
-def decoupled_contrastive_loss(
-    logits: torch.Tensor,  # B, B
-):
-    exp_logits = torch.exp(logits)
-    pos_mask = torch.eye(logits.shape[0], device=logits.device, dtype=torch.bool)
-    exp_logits = exp_logits.masked_fill(pos_mask, 0)
-
-    exp_logits_denom_A = reduce(exp_logits, "b d -> b", "sum")
-    exp_logits_denom_B = reduce(exp_logits, "d b -> b", "sum")
-    LA = exp_logits.diagonal() / exp_logits_denom_A
-    LB = exp_logits.diagonal() / exp_logits_denom_B
-
-    return 0.5 * (-LA.log() - LB.log()).mean()
+    if use_dcl:
+        pos_mask = torch.eye(logits.shape[0], device=logits.device, dtype=torch.bool)
+        exp_logits = exp_logits.masked_fill(pos_mask, 0)
+    
+    loss_denominator = reduce(exp_logits, "b t -> b", "sum")
+    return -loss_numerator.log() + loss_denominator.log()
 
 
 class TokenDropout(nn.Module):
@@ -112,6 +102,17 @@ def masked_mean(t, mask, dim=1, eps=1e-6):
     denom = mask.sum(dim=dim).clamp(min=eps)
     return numer / denom
 
+def mean_average_similarity_score(
+    hA: torch.Tensor, # B, T1, D
+    hB: torch.Tensor, # B, T2, D
+    maskA: torch.Tensor, # B, T1
+    maskB: torch.Tensor, # B, T2
+    temperature: torch.float
+):
+    hA = reduce(hA * maskA[..., None], "b t d -> b d", "mean")
+    hB = reduce(hB * maskB[..., None], "b t d -> b d", "mean")
+    logits = einsum(hA, hB, "b1 d, b2 d -> b1 b2") / temperature
+    return logits
 
 def filip_similarity_score(
     hA: torch.Tensor,
