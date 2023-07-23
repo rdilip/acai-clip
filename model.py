@@ -10,20 +10,14 @@ class AcaiCLIP(nn.Module):
         model_A,
         model_B,
         token_dropout: float,
-        model_A_output_dim: int,
-        dim: int = 256,
         dcl_loss: bool = True,
         filip_similarity_score: bool = True,
     ):
         self.model_A = model_A
-
-        for param in self.model_A.parameters():
-            param.requires_grad = False
         self.model_B = model_B
 
         self.token_dropout = TokenDropout(prob=token_dropout)
         # Used as a projection for LiT
-        self.linear = nn.Linear(model_A_output_dim, dim)
         self.dcl_loss = dcl_loss
         self.filip_similarity_score = filip_similarity_score
         self.temperature = nn.Parameter(torch.tensor(0.1))
