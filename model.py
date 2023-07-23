@@ -69,7 +69,7 @@ def contrastive_loss(logits: torch.Tensor, use_dcl: bool = False):
         exp_logits = exp_logits.masked_fill(pos_mask, 0)
     
     loss_denominator = reduce(exp_logits, "b t -> b", "sum")
-    return -loss_numerator.log() + loss_denominator.log()
+    return (-loss_numerator.log() + loss_denominator.log()).mean()
 
 
 class TokenDropout(nn.Module):
