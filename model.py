@@ -135,6 +135,15 @@ def filip_similarity_score(
     maskA:  group, batch, time
     maskB:  group, batch, time
     """
+    if len(hA.size()) == 3:
+        hA = rearrange(hA, "b t d -> 1 b t d")
+    if len(hB.size()) == 3:
+        hB = rearrange(hB, "b t d -> 1 b t d")
+    if len(maskA.size()) == 2:
+        maskA = rearrange(maskA, "b t -> 1 b t")
+    if len(maskB.size()) == 2:
+        maskB = rearrange(maskB, "b t -> 1 b t")
+
     sim_scores = einsum(hA, hB, "m bA tA d, n bB tB d -> m n bA bB tA tB") / temperature
     maskA = rearrange(maskA, "m bA tA -> m 1 bA 1 tA 1")
     maskB = rearrange(maskB, "n bB tB -> 1 n 1 bB 1 tB")
