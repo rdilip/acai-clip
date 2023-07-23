@@ -158,4 +158,7 @@ def filip_similarity_score(
         sim_scores_B, rearrange(maskB, "... 1 tB -> ... tB"), dim=-1
     )
 
+    if not include_group:
+        sim_scores_A, sim_scores_B = map(lambda s: rearrange(s, "1 1 b t -> b t"), (sim_scores_A, sim_scores_B))
+
     return sim_scores_A, sim_scores_B
