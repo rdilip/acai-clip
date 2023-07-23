@@ -11,6 +11,8 @@ class AcaiCLIP(nn.Module):
         model_B,
         token_dropout: float,
         dcl_loss: bool = True,
+        model_A_output_dim: int= 1280,
+        n_embd: int = 128,
         filip_similarity_score: bool = True,
     ):
         self.model_A = model_A
@@ -18,6 +20,7 @@ class AcaiCLIP(nn.Module):
 
         self.token_dropout = TokenDropout(prob=token_dropout)
         # Used as a projection for LiT
+        self.proj = nn.Linear(model_A_output_dim, n_embd)
         self.dcl_loss = dcl_loss
         self.filip_similarity_score = filip_similarity_score
         self.temperature = nn.Parameter(torch.tensor(0.1))
@@ -32,7 +35,7 @@ class AcaiCLIP(nn.Module):
         tokens_A, tokens_B = map(self.token_dropout, (batch_A, batch_B))
 
         hA = self.model_A(tokens_A, mask=mask_A)
-        hA = self.linear(hA)
+        hA = self.proj(hA)
         hA = rearrange(hA, "b t d -> 1 b t d")
 
         hB = self.model_B(tokens_B, mask=mask_B)
@@ -116,6 +119,7 @@ def filip_similarity_score(
     maskA: torch.Tensor,
     maskB: torch.Tensor,
     temperature: torch.float,
+    include_group: bool = False
 ):
     """Computes a filip similarity score (described in
     https://arxiv.org/pdf/2111.07783.pdf) for modalities A and B.
@@ -125,13 +129,12 @@ def filip_similarity_score(
     maskA:  group, batch, time
     maskB:  group, batch, time
     """
-    if len(hA.size()) == 3:
+    # Don't do separate cases for each of these: einops will throw an error if you include
+    # a group when you said you don't want to, and this is by design
+    if not include_group:
         hA = rearrange(hA, "b t d -> 1 b t d")
-    if len(hB.size()) == 3:
         hB = rearrange(hB, "b t d -> 1 b t d")
-    if len(maskA.size()) == 2:
         maskA = rearrange(maskA, "b t -> 1 b t")
-    if len(maskB.size()) == 2:
         maskB = rearrange(maskB, "b t -> 1 b t")
 
     sim_scores = einsum(hA, hB, "m bA tA d, n bB tB d -> m n bA bB tA tB") / temperature
