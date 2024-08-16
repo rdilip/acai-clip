@@ -1,6 +1,6 @@
 # acai-CLIP
 
-acai (all contrastive advances/improvements) CLIP is CLIP on steroids. I'm implementing every experimental add-on that I can find and that seems to generalize well. I think there's a lot of opportunities for contrastive learning applications in biology but the small data sizes are holding us back, so anything we can do to improve that will be beneficial. 
+acaiCLIP is an implementation of CLIP with experimental add-ons. 
 
 ## Papers to implement
 - [x] [DCL loss](https://arxiv.org/pdf/2110.06848.pdf)
